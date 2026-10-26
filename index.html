@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d10">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>ifft·cam</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <span class="brand">ifft<span>·</span>cam</span>
+  <nav>
+    <button id="btn-start" type="button" title="Start camera">Camera</button>
+    <button id="btn-flip" type="button" title="Front / back camera">Flip</button>
+    <button id="btn-freeze" type="button" title="Hold this frame; the solver keeps iterating">Freeze</button>
+    <button id="btn-view" type="button" title="Cycle view">View</button>
+    <button id="btn-reset" type="button" title="Reset the phase-retrieval state">Reset</button>
+    <button id="btn-snap" type="button" title="Save PNG">Save</button>
+    <button id="btn-panel" type="button" title="Show / hide controls">Knobs</button>
+  </nav>
+</header>
+<main>
+  <div class="stage">
+    <canvas id="view"></canvas>
+    <div id="overlay" class="overlay" hidden>
+      <p class="msg">The camera frame is read as the output of the swaylock FFT effect, and inverted live.</p>
+      <div class="actions">
+        <button type="button" class="primary" onclick="document.getElementById('btn-start').click()">Start camera</button>
+        <button type="button" onclick="document.getElementById('btn-pattern').click()">Use test pattern</button>
+      </div>
+    </div>
+    <div id="toast" class="toast" hidden></div>
+    <div id="status" class="status"></div>
+  </div>
+  <aside id="panel"></aside>
+</main>
+<button id="btn-pattern" type="button" hidden></button>
+<input id="file" type="file" accept="image/*" hidden>
+<video id="video" autoplay muted playsinline></video>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
