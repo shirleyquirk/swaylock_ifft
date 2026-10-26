@@ -3,6 +3,30 @@
 Live camera → inverse of the swaylock-effects FFT effect (`reference/swaylock_effect.c`), in the browser.
 WebGL2 only, no build step, no dependencies. Works on iOS Safari 15+, Chrome, Firefox.
 
+## tryseven: the invertible version
+
+`trysix.c` (= `reference/swaylock_effect.c`) keeps only |FFT|, and that can't be undone: measured on a
+desktop screenshot, blind phase retrieval does no better than random phase. `seven/tryseven.c` keeps the
+look (grey static, bright DC corner) but uses a 2-D DCT of Y, Cb, Cr. A DCT of a real image is real, so
+there is no phase to lose, and three channels give exactly the three numbers an RGB pixel holds.
+Coefficients are companded with the same `log(1+|x|)`, sign kept, mid grey = 0.
+
+- `seven/tryseven.c`: the effect (swaylock `--effect-custom` entry point).
+- `seven/untryseven.c`: the inverse, same entry point.
+- `seven.html` + `js/seven.js`: the inverse (and the effect) in the browser, any image size.
+  Output is byte-identical to the C on 960×540 test images.
+- Round trip: 39.8 dB PSNR on a desktop screenshot, 55.6 dB on a mostly flat UI screenshot.
+  Needs the exact pixels (PNG at original size); a resized or JPEG copy decodes to noise.
+
+```sh
+cc -O2 -shared -fPIC -Iseven -o tryseven.so   seven/tryseven.c   -lfftw3 -lm
+cc -O2 -shared -fPIC -Iseven -o untryseven.so seven/untryseven.c -lfftw3 -lm
+swaylock --effect-custom ./tryseven.so ...
+# offline:
+cc -O2 -Iseven -o tryseven_cli test/cref/harness.c seven/tryseven.c -lfftw3 -lm
+magick shot.png -depth 8 rgba:- | ./tryseven_cli 1920 1080 | magick -size 1920x1080 -depth 8 rgba:- seven.png
+```
+
 ## Deploy (GitHub Pages)
 
 ```sh

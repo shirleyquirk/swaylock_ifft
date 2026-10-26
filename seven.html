@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d10">
+<title>tryseven</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  body { overflow: auto; height: auto; min-height: 100dvh; }
+  .wrap { padding: 12px; display: flex; flex-direction: column; gap: 12px; max-width: 1400px; margin: 0 auto; width: 100%; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .note { color: var(--muted); font-size: 13px; max-width: 75ch; margin: 0; }
+  .note code { font-family: var(--mono); color: var(--text); }
+  .panes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 760px) { .panes { grid-template-columns: 1fr; } }
+  figure { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px; min-width: 0; }
+  figcaption { font: 12px var(--mono); color: var(--muted); margin-bottom: 6px; display: flex; justify-content: space-between; gap: 8px; }
+  figure canvas { width: 100%; height: auto; aspect-ratio: auto; display: block; image-rendering: pixelated; background: #000; }
+  .drop { border: 1px dashed #3a4250; border-radius: 6px; padding: 18px; text-align: center; color: var(--muted); }
+  .drop.over { border-color: var(--accent); color: var(--text); }
+  #msg { font: 12px var(--mono); color: var(--accent-2); min-height: 1.3em; }
+  #msg.warn { color: var(--accent); }
+  a { color: var(--accent-2); }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">try<span>·</span>seven</span>
+  <nav><a href="./" style="align-self:center">← live camera app</a></nav>
+</header>
+<div class="wrap">
+  <p class="note">
+    <code>tryseven.c</code> is an invertible relative of <code>trysix.c</code>: a 2-D DCT of Y, Cb, Cr instead of |FFT| of H, S, V.
+    No phase is thrown away, so <b>untryseven</b> gets the image back (≈40 dB on a desktop screenshot).
+    It needs the exact pixels: a PNG screenshot at the original size, not a resized or JPEG copy.
+  </p>
+  <div class="drop" id="drop">Drop, paste or <button type="button" id="pick">choose an image</button>
+    <input type="file" id="file" accept="image/*" hidden></div>
+  <div class="bar">
+    <button type="button" class="primary" id="dec" disabled>untryseven (decode)</button>
+    <button type="button" id="enc" disabled>tryseven (encode)</button>
+    <button type="button" id="swap" disabled>Use output as input</button>
+    <button type="button" id="save" disabled>Save output PNG</button>
+  </div>
+  <div id="msg"></div>
+  <div class="panes">
+    <figure><figcaption><span>input</span><span id="inInfo"></span></figcaption><canvas id="cin" width="16" height="9"></canvas></figure>
+    <figure><figcaption><span>output</span><span id="outInfo"></span></figcaption><canvas id="cout" width="16" height="9"></canvas></figure>
+  </div>
+</div>
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const worker = new Worker(new URL('./js/seven-worker.js', import.meta.url), { type: 'module' });
+let input = null;      // { data: Uint8ClampedArray, W, H }
+let output = null;
+let original = null;   // pixels before the last encode, for round-trip PSNR
+let busy = false;
+
+const say = (t, warn) => { $('msg').textContent = t; $('msg').className = warn ? 'warn' : ''; };
+function draw(canvas, img) {
+  canvas.width = img.W; canvas.height = img.H;
+  canvas.getContext('2d', { colorSpace: 'srgb' }).putImageData(new ImageData(new Uint8ClampedArray(img.data), img.W, img.H), 0, 0);
+}
+function enable() {
+  $('dec').disabled = $('enc').disabled = !input || busy;
+  $('swap').disabled = $('save').disabled = !output || busy;
+}
+function psnr(a, b) {
+  let se = 0, n = 0;
+  for (let i = 0; i < a.length; i++) { if ((i & 3) === 3) continue; const d = a[i] - b[i]; se += d * d; n++; }
+  return se === 0 ? Infinity : 10 * Math.log10((255 * 255) / (se / n));
+}
+
+async function load(blob) {
+  try {
+    const bmp = await createImageBitmap(blob, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
+    const c = document.createElement('canvas');
+    c.width = bmp.width; c.height = bmp.height;
+    const ctx = c.getContext('2d', { colorSpace: 'srgb', willReadFrequently: true });
+    ctx.drawImage(bmp, 0, 0);
+    const d = ctx.getImageData(0, 0, c.width, c.height).data;
+    input = { data: d, W: c.width, H: c.height };
+    original = null; output = null;
+    draw($('cin'), input);
+    $('inInfo').textContent = `${input.W}×${input.H}`;
+    $('outInfo').textContent = '';
+    $('cout').width = 16; $('cout').height = 9;
+    const jpeg = /jpe?g/i.test(blob.type || '');
+    say(jpeg ? 'This is a JPEG: its compression has already destroyed the coefficients; decoding will be noise.' : 'Loaded.', jpeg);
+  } catch (e) { say(`Could not read image: ${e.message || e}`, true); }
+  enable();
+}
+
+function run(op) {
+  if (!input || busy) return;
+  busy = true; enable();
+  say(`${op === 'encode' ? 'tryseven' : 'untryseven'} on ${input.W}×${input.H}…`);
+  if (op === 'encode') original = input;
+  const data = new Uint8ClampedArray(input.data);
+  worker.onmessage = (e) => {
+    busy = false;
+    output = { data: e.data.out, W: input.W, H: input.H, op };
+    draw($('cout'), output);
+    let info = `${e.data.ms.toFixed(0)} ms`;
+    if (op === 'decode' && original && original.W === output.W && original.H === output.H) {
+      info += ` · round trip ${psnr(original.data, output.data).toFixed(1)} dB`;
+    }
+    $('outInfo').textContent = info;
+    say(op === 'encode' ? 'Encoded. "Use output as input", then decode, to check the round trip.' : 'Decoded.');
+    enable();
+  };
+  worker.postMessage({ op, data, W: input.W, H: input.H }, [data.buffer]);
+}
+
+$('pick').onclick = () => $('file').click();
+$('file').onchange = () => { const f = $('file').files?.[0]; if (f) load(f); };
+$('dec').onclick = () => run('decode');
+$('enc').onclick = () => run('encode');
+$('swap').onclick = () => {
+  const keep = original;
+  input = { data: output.data, W: output.W, H: output.H };
+  original = output.op === 'encode' ? keep : null;
+  output = null;
+  draw($('cin'), input);
+  $('inInfo').textContent = `${input.W}×${input.H}`;
+  $('outInfo').textContent = '';
+  enable();
+};
+$('save').onclick = () => {
+  $('cout').toBlob((b) => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(b);
+    a.download = output.op === 'encode' ? 'tryseven.png' : 'untryseven.png';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }, 'image/png');
+};
+const drop = $('drop');
+drop.ondragover = (e) => { e.preventDefault(); drop.classList.add('over'); };
+drop.ondragleave = () => drop.classList.remove('over');
+drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove('over'); const f = e.dataTransfer.files?.[0]; if (f) load(f); };
+window.addEventListener('paste', (e) => {
+  const item = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith('image/'));
+  if (item) load(item.getAsFile());
+});
+window.seven = { load, run, get output() { return output; }, get input() { return input; } };
+</script>
+</body>
+</html>
