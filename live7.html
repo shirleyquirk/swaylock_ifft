@@ -64,6 +64,16 @@
   <aside id="panel"></aside>
 </main>
 <input id="file" type="file" accept="image/*" hidden>
-<script type="module" src="js/live7.js"></script>
+<script>
+  // Show any load/runtime error on the page instead of failing silently (classic script: runs first).
+  window.showError = function (m) {
+    var el = document.getElementById('msg');
+    if (el) { el.hidden = false; el.textContent = 'Error: ' + m; el.style.borderColor = '#ff4d4d'; }
+  };
+  window.addEventListener('error', function (e) { window.showError((e.message || e.type) + (e.filename ? ' (' + e.filename.split('/').pop() + ':' + e.lineno + ')' : '')); }, true);
+  window.addEventListener('unhandledrejection', function (e) { window.showError(String(e.reason && e.reason.message || e.reason)); });
+  setTimeout(function () { if (!window.live7) window.showError('live7.js did not start (old cached copy, or a script error). Reload the page.'); }, 4000);
+</script>
+<script type="module" src="js/live7.js?v=3"></script>
 </body>
 </html>

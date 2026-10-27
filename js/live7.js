@@ -53,14 +53,13 @@ out vec4 o;
 void main() {
   ivec2 p = ivec2(gl_FragCoord.xy);
   int n = uAxis == 0 ? p.x : p.y;
-  int m4 = 4 * uN, step = 2 * n + 1, m = 0;
+  int m4 = 4 * uN, stride = 2 * n + 1, m = 0;
   vec3 s = vec3(0.0);
   for (int k = 0; k < uN; k++) {
     ivec2 t = uAxis == 0 ? ivec2(k, p.y) : ivec2(p.x, k);
     float w = k == 0 ? 1.0 : 2.0;
     s += w * cos(PI * float(m) / float(2 * uN)) * texelFetch(uIn, t, 0).rgb;
-    m += step; if (m >= m4) m -= m4;           // k (2n+1) mod 4N, exact integers
-    if (m >= m4) m -= m4;
+    m += stride; if (m >= m4) m -= m4;         // k (2n+1) mod 4N, exact integers
   }
   o = vec4(s, 1.0);
 }`;
@@ -144,14 +143,14 @@ const inputs = {};
 const $ = (id) => document.getElementById(id);
 const out = $('out'), video = $('video'), ov = $('ov'), octx = ov.getContext('2d');
 const gl = out.getContext('webgl2', { antialias: false, alpha: false, preserveDrawingBuffer: true });
-if (!gl) { $('msg').textContent = 'WebGL2 is not available in this browser.'; throw new Error('no webgl2'); }
+if (!gl) { window.showError('WebGL2 is not available in this browser.'); throw new Error('no webgl2'); }
 const fmt = gl.getExtension('EXT_color_buffer_float') ? { i: gl.RGBA32F, t: gl.FLOAT } : (gl.getExtension('EXT_color_buffer_half_float'), { i: gl.RGBA16F, t: gl.HALF_FLOAT });
 function prog(fs) {
   const p = gl.createProgram();
   for (const [type, src] of [[gl.VERTEX_SHADER, VERT], [gl.FRAGMENT_SHADER, fs]]) {
     const sh = gl.createShader(type);
     gl.shaderSource(sh, src); gl.compileShader(sh);
-    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh));
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(`shader compile: ${gl.getShaderInfoLog(sh)}`);
     gl.attachShader(p, sh);
   }
   gl.linkProgram(p);
