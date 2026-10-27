@@ -27,6 +27,28 @@ cc -O2 -Iseven -o tryseven_cli test/cref/harness.c seven/tryseven.c -lfftw3 -lm
 magick shot.png -depth 8 rgba:- | ./tryseven_cli 1920 1080 | magick -size 1920x1080 -depth 8 rgba:- seven.png
 ```
 
+## tryseven live: decoding the lock screen through a phone camera (`live7.html`)
+
+tryseven puts DCT coefficient (a, b) at screen pixel (a, b), so the low frequencies, which are all a
+thumbnail needs, sit in the screen's top-left corner. The camera zooms in on that corner until single
+screen pixels are resolved and reads each one back as a coefficient:
+
+1. **Grid lock**: FFT peak of the pixel lattice (brightness, or edge energy when blur hides the gaps;
+   square-pixel rule for the weak axis), then a cubic phase surface per axis fitted to ~50 patch phases
+   with outlier rejection. Handles rotation and perspective.
+2. **Subpixel windows**: averages each colour against position inside the pixel to find where the R, G, B
+   emitters are, then samples each channel at its own emitter.
+3. **Origin**: pixel (0,0) is where the dark bezel ends. Pixels are indexed in screen coordinates, so the
+   camera can move while the running average builds.
+4. **Calibration**: each channel's bytes are symmetric about 127.5 (signs are 50/50), so pairing camera
+   quantiles q / 1-q undoes the tone curve; pixel (0,0) (Y's DC, ≈244) sets the scale.
+5. **Decode**: inverse DCT of the K×Kh corner over the whole screen, with log softening κ.
+
+Synthetic phone camera tests (`test/camsim.py`: RGB stripes, rotation, perspective, blur, noise, tone
+curve, colour crosstalk, 4:2:0 video): registration exact in all cases; text readable at ≥ 4.5 camera px per
+screen px with sharp focus. One byte level is a 12.5% coefficient change at 1080p, so the large-scale shading
+stays streaky and colours drift: expect a readable but rough image. Below ~4 px per screen pixel it fails.
+
 ## Deploy (GitHub Pages)
 
 ```sh

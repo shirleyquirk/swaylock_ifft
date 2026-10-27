@@ -193,3 +193,5 @@ export function psnr(a, b) {
   for (let i = 0; i < a.length; i++) { if ((i & 3) === 3) continue; const d = a[i] - b[i]; se += d * d; n++; }
   return 10 * Math.log10((255 * 255) / (se / n));
 }
+
+export { fft2, dct3 };
