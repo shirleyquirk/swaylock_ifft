@@ -27,27 +27,24 @@ cc -O2 -Iseven -o tryseven_cli test/cref/harness.c seven/tryseven.c -lfftw3 -lm
 magick shot.png -depth 8 rgba:- | ./tryseven_cli 1920 1080 | magick -size 1920x1080 -depth 8 rgba:- seven.png
 ```
 
-## tryseven live: decoding the lock screen through a phone camera (`live7.html`)
+## tryseven live (`live7.html`)
 
-tryseven puts DCT coefficient (a, b) at screen pixel (a, b), so the low frequencies, which are all a
-thumbnail needs, sit in the screen's top-left corner. The camera zooms in on that corner until single
-screen pixels are resolved and reads each one back as a coefficient:
+Point the camera at the tryseven lock screen and line the orange rectangle up with the screen's
+top-left corner (red dot = pixel (0,0)): drag to move, pinch / wheel to size, rotate in Knobs.
+The rectangle is cut into K×Kh cells, each cell is read as one tryseven pixel, and the GPU inverts it every
+frame (inverse DCT by direct sum; decoding an exact tryseven file matches the C decoder to 1 level).
 
-1. **Grid lock**: FFT peak of the pixel lattice (brightness, or edge energy when blur hides the gaps;
-   square-pixel rule for the weak axis), then a cubic phase surface per axis fitted to ~50 patch phases
-   with outlier rejection. Handles rotation and perspective.
-2. **Subpixel windows**: averages each colour against position inside the pixel to find where the R, G, B
-   emitters are, then samples each channel at its own emitter.
-3. **Origin**: pixel (0,0) is where the dark bezel ends. Pixels are indexed in screen coordinates, so the
-   camera can move while the running average builds.
-4. **Calibration**: each channel's bytes are symmetric about 127.5 (signs are 50/50), so pairing camera
-   quantiles q / 1-q undoes the tone curve; pixel (0,0) (Y's DC, ≈244) sets the scale.
-5. **Decode**: inverse DCT of the K×Kh corner over the whole screen, with log softening κ.
+- Auto zero level (median of the cells; tryseven bytes are symmetric about 127.5) and auto gain (typical
+  distance from zero ≈ 48 for a 1080p corner), plus auto output levels, all from a tiny readback. Each is a
+  checkbox with a manual trim.
+- Log softening κ (default 0.75): one byte level is a 12.5% coefficient change at 1080p, so camera error
+  is amplified; κ < 1 tames it. Use κ = 1 for exact files.
+- More cells (K) = more detail but needs the camera to resolve that many screen pixels across the
+  rectangle: aim for ≥ 4 camera px per cell (shown in the status line).
+- "Image" loads a file and frames it exactly (one cell per pixel), so a tryseven PNG decodes perfectly.
 
-Synthetic phone camera tests (`test/camsim.py`: RGB stripes, rotation, perspective, blur, noise, tone
-curve, colour crosstalk, 4:2:0 video): registration exact in all cases; text readable at ≥ 4.5 camera px per
-screen px with sharp focus. One byte level is a 12.5% coefficient change at 1080p, so the large-scale shading
-stays streaky and colours drift: expect a readable but rough image. Below ~4 px per screen pixel it fails.
+On a simulated phone camera (`test/camsim.py`) a hand-aligned 256×144 rectangle shows the window layout,
+boxes and text lines: rough, but recognisable.
 
 ## Deploy (GitHub Pages)
 

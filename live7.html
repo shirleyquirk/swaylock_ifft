@@ -9,19 +9,19 @@
 <link rel="stylesheet" href="style.css">
 <style>
   .stages { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px; min-width: 0; min-height: 0; }
-  .pane { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; gap: 4px; }
-  .pane > .cap { font: 11px var(--mono); color: var(--muted); }
-  .frame { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; background: #000; border-radius: 4px; overflow: hidden; position: relative; }
-  #view { display: block; }
-  #thumb { width: 100%; height: auto; max-height: 100%; object-fit: contain; display: block; background: #000; }
+  .pane { display: flex; flex-direction: column; gap: 4px; min-width: 0; min-height: 0; }
+  .cap { font: 11px var(--mono); color: var(--muted); }
+  .frame { flex: 1; position: relative; min-height: 0; background: #000; border-radius: 4px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  /* style.css gives every canvas a black square box: undo that here */
+  .frame canvas, .frame video { aspect-ratio: auto; max-width: none; max-height: none; border-radius: 0; }
+  .frame video, .frame #stillview { width: 100%; height: 100%; object-fit: contain; display: block; background: #000; }
+  .frame #video { position: static; width: 100%; height: 100%; opacity: 1; pointer-events: none; }
+  #ov { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: move; background: transparent; }
+  #out { width: 100%; height: 100%; object-fit: contain; display: block; background: #000; }
   .msg { position: absolute; left: 8px; right: 8px; top: 8px; background: rgba(18,21,26,.92); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: 13px; }
   .row input.num { width: 100%; background: #1a1f26; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
-  .howto { margin: 0; max-width: 46ch; font-size: 14px; }
-  .howto li { margin: 4px 0; }
-  @media (max-width: 760px) {
-    .stages { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
-    .pane.out .frame { flex: none; }
-  }
+  #status { font: 11px var(--mono); color: var(--muted); }
+  @media (max-width: 760px) { .stages { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; } aside { height: 38dvh; } }
 </style>
 </head>
 <body>
@@ -29,43 +29,41 @@
   <span class="brand">try<span>·</span>seven live</span>
   <nav>
     <button id="btn-camera" type="button">Camera</button>
-    <button id="btn-photo" type="button" title="Decode a photo taken with the camera app (macro mode, full resolution)">Photo</button>
+    <button id="btn-photo" type="button">Image</button>
     <button id="btn-freeze" type="button">Freeze</button>
-    <button id="btn-reset" type="button" title="Forget accumulated pixels">Reset</button>
     <button id="btn-save" type="button">Save</button>
     <button id="btn-panel" type="button">Knobs</button>
-    <button type="button" onclick="location.href='seven.html'">From screenshot</button>
+    <button type="button" onclick="location.href='seven.html'">From file</button>
+    <button type="button" onclick="location.href='./'">trysix</button>
   </nav>
 </header>
 <main>
   <div class="stages">
     <div class="pane">
-      <div class="cap">camera · <span style="color:#ff4d4d">■</span> screen pixel (0,0) · <span style="color:#ffb547">—</span> screen x · <span style="color:#4d7cff">—</span> screen y</div>
-      <div class="frame"><canvas id="view"></canvas><div id="msg" class="msg" hidden></div>
-        <div id="overlay" class="overlay">
-          <ol class="howto">
-            <li>Lock the screen with <code>tryseven</code>.</li>
-            <li>Rear camera on the screen's <b>top-left corner</b>, close enough to see single pixels (≥ 4.5 camera px each). The bezel edge must be in view.</li>
-            <li>Hold square-on and steady; the decode builds up over a second or two. Or take a macro photo and use <b>Photo</b>.</li>
-            <li>Set the locked screen's resolution in Knobs → Screen.</li>
-          </ol>
+      <div class="cap">camera · drag to move · pinch / wheel to size · <span style="color:#ff4d4d">●</span> = screen's top-left pixel</div>
+      <div class="frame">
+        <video id="video" autoplay muted playsinline></video>
+        <canvas id="stillview" hidden></canvas>
+        <canvas id="ov"></canvas>
+        <div id="start" class="overlay">
+          <p class="msg" style="position:static;max-width:36ch">Line the orange rectangle up with the top-left corner of the tryseven lock screen. Each grid cell is read as one screen pixel and inverted live.</p>
           <div class="actions">
             <button type="button" class="primary" onclick="document.getElementById('btn-camera').click()">Start camera</button>
-            <button type="button" onclick="document.getElementById('btn-photo').click()">Use a photo</button>
+            <button type="button" onclick="document.getElementById('btn-photo').click()">Use an image</button>
           </div>
         </div>
+        <div id="msg" class="msg" hidden></div>
       </div>
     </div>
-    <div class="pane out">
-      <div class="cap">decoded screen</div>
-      <div class="frame"><canvas id="thumb" width="16" height="9"></canvas></div>
-      <div id="status" class="status" style="position:static"></div>
+    <div class="pane">
+      <div class="cap">decoded (split view: sampled cells on the left)</div>
+      <div class="frame"><canvas id="out" width="16" height="9"></canvas></div>
+      <div id="status"></div>
     </div>
   </div>
   <aside id="panel"></aside>
 </main>
 <input id="file" type="file" accept="image/*" hidden>
-<video id="video" autoplay muted playsinline></video>
 <script type="module" src="js/live7.js"></script>
 </body>
 </html>
